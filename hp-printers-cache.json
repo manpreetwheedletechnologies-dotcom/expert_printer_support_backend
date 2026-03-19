@@ -1,0 +1,77 @@
+{
+  "scrapedDate": "2026-03-19",
+  "printers": [
+    {
+      "id": "hp-0",
+      "name": "HP DeskJet 2820 All-in-One Printer WiFi Print  Copy Scan",
+      "price": 8860,
+      "original_price": 8860,
+      "image": "https://in-media.apjonlinecdn.com/catalog/product/cache/314dec89b3219941707ad62ccc90e585/5/8/588L3D-1_T1696992820.png",
+      "url": "https://www.hp.com/in-en/shop/hp-deskjet-2820-all-in-one-printer-588l3d.html",
+      "in_stock": true
+    },
+    {
+      "id": "hp-1",
+      "name": "HP Ink Advantage 2878 Printer, Copy, Scan, WiFi, Bluetooth, USB, Simple Setup Smart App, Ideal for Home",
+      "price": 8860,
+      "original_price": 8860,
+      "image": "https://in-media.apjonlinecdn.com/catalog/product/cache/314dec89b3219941707ad62ccc90e585/5/4/54R50B-1_T1696992862.png",
+      "url": "https://www.hp.com/in-en/shop/hp-deskjet-ink-advantage-2878-all-in-one-printer-54r50b.html",
+      "in_stock": true
+    },
+    {
+      "id": "hp-2",
+      "name": "HP Ink Advantage Ultra 4929 Print, Copy, Scan, Self Reset WiFi, Smart App Setup",
+      "price": 11081,
+      "original_price": 11081,
+      "image": "https://in-media.apjonlinecdn.com/catalog/product/cache/314dec89b3219941707ad62ccc90e585/6/0/60K34B-1_T1696992933.png",
+      "url": "https://www.hp.com/in-en/shop/hp-deskjet-ink-advantage-ultra-4929-all-in-one-printer-60k34b.html",
+      "in_stock": true
+    },
+    {
+      "id": "hp-3",
+      "name": "HP Laser 303d Printer",
+      "price": 20250,
+      "original_price": 20250,
+      "image": "https://in-media.apjonlinecdn.com/catalog/product/cache/314dec89b3219941707ad62ccc90e585/A/5/A58WCA-1_T1744185956.png",
+      "url": "https://www.hp.com/in-en/shop/hp-laser-303d-printer-a58wca.html",
+      "in_stock": true
+    },
+    {
+      "id": "hp-4",
+      "name": "HP Laser MFP 323sdnw Printer",
+      "price": 35250,
+      "original_price": 35250,
+      "image": "https://in-media.apjonlinecdn.com/catalog/product/cache/c5b0e6136a6dd7f7d91d8b889ed40f35/h/p/hp_laser_mfp_323dnw_printer_dunhuang_istanbul_adf_wireless_india_jetblack_catalog_whitebg_front_sup_m2957122.png",
+      "url": "https://www.hp.com/in-en/shop/hp-laser-mfp-323sdnw-printer-a58wka.html#product.tab.offer",
+      "in_stock": true
+    },
+    {
+      "id": "hp-5",
+      "name": "HP Smart Tank 585 All-in-One Printer",
+      "price": 18139,
+      "original_price": 18139,
+      "image": "https://in-media.apjonlinecdn.com/catalog/product/cache/c5b0e6136a6dd7f7d91d8b889ed40f35/1/F/1F3Y4A-1_T1680351654.png",
+      "url": "https://www.hp.com/in-en/shop/hp-smart-tank-585-all-in-one-printer-1f3y4a.html#product.tab.offer",
+      "in_stock": true
+    },
+    {
+      "id": "hp-6",
+      "name": "HP Laser MFP 1188w Printer",
+      "price": 25806,
+      "original_price": 25806,
+      "image": "https://in-media.apjonlinecdn.com/catalog/product/cache/c5b0e6136a6dd7f7d91d8b889ed40f35/1/1/1188w_1.png",
+      "url": "https://www.hp.com/in-en/shop/hp-laser-mfp-1188w-printer-715a3a.html#product.tab.offer",
+      "in_stock": true
+    },
+    {
+      "id": "hp-7",
+      "name": "HP Laser 1008a Printer",
+      "price": 14625,
+      "original_price": 14625,
+      "image": "https://in-media.apjonlinecdn.com/catalog/product/cache/c5b0e6136a6dd7f7d91d8b889ed40f35/7/1/714Z8A-1_T1683121096.png",
+      "url": "https://www.hp.com/in-en/shop/hp-laser-1008a-714z8a.html#product.tab.offer",
+      "in_stock": true
+    }
+  ]
+}
