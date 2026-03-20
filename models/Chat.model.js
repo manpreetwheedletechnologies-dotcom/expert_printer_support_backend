@@ -42,6 +42,7 @@ const chatSchema = new mongoose.Schema(
       printerModel:  String,
       issueType:     String,
       initialMessage: String,
+      amount:         { type: Number, default: 0 },
     },
 
     // Agent assignment

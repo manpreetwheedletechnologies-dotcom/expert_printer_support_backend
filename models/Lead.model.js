@@ -7,6 +7,7 @@ const leadSchema = new mongoose.Schema(
     email:   { type: String, required: true, trim: true, lowercase: true },
     phone:   { type: String, trim: true },
     message: { type: String, required: true },
+    amount:  { type: Number, default: 0 },
 
     // Printer info (optional - for printer support queries)
     printerBrand:  { type: String, trim: true },
