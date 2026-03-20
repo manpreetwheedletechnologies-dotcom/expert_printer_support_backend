@@ -11,7 +11,7 @@
 
 import { io } from 'socket.io-client';
 
-const SERVER_URL = 'http://localhost:5000';
+const SERVER_URL = 'https://printerexperts.online/api/';
 
 // ═════════════════════════════════════════════════════════════════════════════
 // 1. VISITOR CHATBOT WIDGET
