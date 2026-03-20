@@ -11,7 +11,7 @@
 
 import { io } from 'socket.io-client';
 
-const SERVER_URL = 'https://printerexperts.online/api/';
+const SERVER_URL = 'https://printerexperts.online';
 
 // ═════════════════════════════════════════════════════════════════════════════
 // 1. VISITOR CHATBOT WIDGET
@@ -51,14 +51,14 @@ export const createVisitorSocket = () => {
 
   /** Step 3 — Typing indicators */
   const startTyping = (roomId) => socket.emit('typing_start', { roomId, sender: 'visitor' });
-  const stopTyping  = (roomId) => socket.emit('typing_stop',  { roomId, sender: 'visitor' });
+  const stopTyping = (roomId) => socket.emit('typing_stop', { roomId, sender: 'visitor' });
 
   // ── Incoming events ──────────────────────────────────────────────────────
-  socket.on('chat_history',    (messages)  => console.log('History:', messages));
-  socket.on('receive_message', (msg)       => console.log('New message:', msg));
-  socket.on('agent_connected', (data)      => console.log('Agent joined:', data.message));
-  socket.on('typing_indicator',(data)      => console.log(`Agent typing: ${data.isTyping}`));
-  socket.on('chat_closed',     ()          => console.log('Chat ended'));
+  socket.on('chat_history', (messages) => console.log('History:', messages));
+  socket.on('receive_message', (msg) => console.log('New message:', msg));
+  socket.on('agent_connected', (data) => console.log('Agent joined:', data.message));
+  socket.on('typing_indicator', (data) => console.log(`Agent typing: ${data.isTyping}`));
+  socket.on('chat_closed', () => console.log('Chat ended'));
 
   return { socket, startChat, sendMessage, startTyping, stopTyping };
 };
@@ -102,15 +102,15 @@ export const createAgentSocket = (jwtToken) => {
   const markRead = (roomId) => socket.emit('mark_read', { roomId });
 
   // ── Incoming events (wire these to your dashboard UI state) ──────────────
-  socket.on('new_chat_assigned',  (chat)  => console.log('New chat assigned:', chat.roomId));
-  socket.on('chat_queue_update',  (data)  => console.log('Queue update:', data));
-  socket.on('receive_message',    (msg)   => console.log('Message in room:', msg.roomId, msg.text));
+  socket.on('new_chat_assigned', (chat) => console.log('New chat assigned:', chat.roomId));
+  socket.on('chat_queue_update', (data) => console.log('Queue update:', data));
+  socket.on('receive_message', (msg) => console.log('Message in room:', msg.roomId, msg.text));
   socket.on('visitor_message_notification', (n) => console.log('Unread from visitor:', n.roomId));
-  socket.on('new_lead',           (lead)  => console.log('New lead submitted:', lead));
-  socket.on('lead_updated',       (lead)  => console.log('Lead updated:', lead));
-  socket.on('typing_indicator',   (data)  => console.log(`Visitor typing: ${data.isTyping}`));
-  socket.on('chat_accepted',      (data)  => console.log('Chat accepted:', data.roomId));
-  socket.on('error',              (err)   => console.error('Socket error:', err.message));
+  socket.on('new_lead', (lead) => console.log('New lead submitted:', lead));
+  socket.on('lead_updated', (lead) => console.log('Lead updated:', lead));
+  socket.on('typing_indicator', (data) => console.log(`Visitor typing: ${data.isTyping}`));
+  socket.on('chat_accepted', (data) => console.log('Chat accepted:', data.roomId));
+  socket.on('error', (err) => console.error('Socket error:', err.message));
 
   return { socket, acceptChat, sendMessage, setAvailability, markRead };
 };
