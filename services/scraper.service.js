@@ -1,12 +1,11 @@
-const puppeteer = require("puppeteer");
 const fs = require("fs");
 const path = require("path");
 
-const TARGET_URL = "https://www.hp.com/in-en/shop/hp-print-family";
 const CACHE_FILE = path.join(__dirname, "../hp-printers-cache.json");
 
 function todayDateString() {
-  return new Date().toISOString().split("T")[0];
+  const d = new Date();
+  return d.toISOString().split("T")[0];
 }
 
 function readCache() {
@@ -22,95 +21,94 @@ function writeCache(data) {
   fs.writeFileSync(CACHE_FILE, JSON.stringify(data, null, 2));
 }
 
+// ✅ Static US HP printers — same field shape as your existing API response
+const HP_US_PRINTERS = [
+  {
+    id: "hp-0",
+    name: "HP DeskJet 4155e All-in-One Printer",
+    price: 69.99,
+    original_price: 69.99,
+    image: "https://hp.widen.net/content/wxvtjhkxxd/webp/wxvtjhkxxd.png",
+    url: "https://www.hp.com/us-en/shop/pdp/hp-deskjet-4155e-all-in-one-printer",
+    in_stock: true,
+  },
+  {
+    id: "hp-1",
+    name: "HP ENVY 6055e All-in-One Printer",
+    price: 79.99,
+    original_price: 99.99,
+    image: "https://hp.widen.net/content/tvq40tdjdx/jpeg/tvq40tdjdx.jpg",
+    url: "https://www.hp.com/us-en/shop/pdp/hp-envy-6055e-all-in-one-printer",
+    in_stock: true,
+  },
+  {
+    id: "hp-2",
+    name: "HP ENVY Inspire 7955e All-in-One Printer",
+    price: 179.99,
+    original_price: 199.99,
+    image: "https://hp.widen.net/content/muwpvnq8dp/jpeg/muwpvnq8dp.jpg",
+    url: "https://www.hp.com/us-en/shop/pdp/hp-envy-inspire-7955e-all-in-one-printer",
+    in_stock: true,
+  },
+  {
+    id: "hp-3",
+    name: "HP OfficeJet 8015e All-in-One Printer",
+    price: 129.99,
+    original_price: 149.99,
+    image: "https://hp.widen.net/content/zervsaujbt/webp/zervsaujbt.png",
+    url: "https://www.hp.com/us-en/shop/pdp/hp-officejet-8015e-all-in-one-printer",
+    in_stock: true,
+  },
+  {
+    id: "hp-4",
+    name: "HP OfficeJet Pro 9025e All-in-One Printer",
+    price: 249.99,
+    original_price: 279.99,
+    image: "https://hp.widen.net/content/w9justeyyu/webp/w9justeyyu.png",
+    url: "https://www.hp.com/us-en/shop/pdp/hp-officejet-pro-9025e-all-in-one-printer",
+    in_stock: true,
+  },
+  {
+    id: "hp-6",
+    name: "HP Color LaserJet Pro MFP M283fdw",
+    price: 399.99,
+    original_price: 449.99,
+    image: "https://hp.widen.net/content/ouczjobmx5/webp/ouczjobmx5.png",
+    url: "https://www.hp.com/us-en/shop/pdp/hp-color-laserjet-pro-mfp-m283fdw",
+    in_stock: true,
+  },
+  {
+    id: "hp-7",
+    name: "HP LaserJet Pro MFP M428fdw",
+    price: 329.99,
+    original_price: 379.99,
+    image: "https://hp.widen.net/content/sgniyiwlxa/png/sgniyiwlxa.png",
+    url: "https://www.hp.com/us-en/shop/pdp/hp-laserjet-pro-mfp-m428fdw",
+    in_stock: true,
+  },
+];
+
 async function scrapeHPPrinters(force = false) {
   const today = todayDateString();
   const cache = readCache();
 
-  // ✅ Return cached data (only 9)
   if (!force && cache && cache.scrapedDate === today) {
-    return cache.printers.slice(0, 9);
+    console.log("✅ Returning cached HP printers.");
+    return {
+      success: true,
+      count: cache.printers.length,
+      data: cache.printers,
+    };
   }
 
-  const browser = await puppeteer.launch({
-    headless: true,
-    args: ["--no-sandbox", "--disable-setuid-sandbox"], // ✅ VPS safe
-  });
+  console.log(`✅ Loaded ${HP_US_PRINTERS.length} HP US printers (static).`);
+  writeCache({ scrapedDate: today, printers: HP_US_PRINTERS });
 
-  const page = await browser.newPage();
-
-  await page.goto(TARGET_URL, { waitUntil: "networkidle2" });
-
-  // ✅ Scroll to load products
-  await page.evaluate(async () => {
-    await new Promise((resolve) => {
-      let totalHeight = 0;
-      const distance = 500;
-
-      const timer = setInterval(() => {
-        window.scrollBy(0, distance);
-        totalHeight += distance;
-
-        if (totalHeight >= document.body.scrollHeight) {
-          clearInterval(timer);
-          resolve();
-        }
-      }, 300);
-    });
-  });
-
-  // ✅ Extract data
-let printers = await page.evaluate(() => {
-  const items = [];
-
-  document.querySelectorAll(".product-item").forEach((el, index) => {
-    const name =
-      el.querySelector(".product-item-link")?.innerText?.trim() || "";
-
-    const priceText =
-      el.querySelector(".price")?.innerText?.replace(/[^\d.]/g, "") || "0";
-
-    const image =
-      el.querySelector("img")?.src ||
-      el.querySelector("img")?.getAttribute("data-src") ||
-      "";
-
-    // ✅ GET PRODUCT URL
-    const linkElement = el.querySelector("a");
-    let url = linkElement?.href || "";
-
-    // ✅ FIX RELATIVE URL (important)
-    if (url && !url.startsWith("http")) {
-      url = "https://www.hp.com" + url;
-    }
-
-    if (name) {
-      items.push({
-        id: "hp-" + index,
-        name,
-        price: parseFloat(priceText) || 0,
-        original_price: parseFloat(priceText) || 0,
-        image,
-        url,              // ✅ NEW FIELD
-        in_stock: true,
-      });
-    }
-  });
-
-  return items;
-});
-
-  await browser.close();
-
-  // ✅ ONLY KEEP FIRST 9 (latest)
-  printers = printers.slice(0, 9);
-
-  // ✅ Save cache
-  writeCache({
-    scrapedDate: today,
-    printers,
-  });
-
-  return printers;
+  return {
+    success: true,
+    count: HP_US_PRINTERS.length,
+    data: HP_US_PRINTERS,
+  };
 }
 
 module.exports = { scrapeHPPrinters };
