@@ -1,5 +1,5 @@
 {
-  "scrapedDate": "2026-03-19",
+  "scrapedDate": "2026-03-20",
   "printers": [
     {
       "id": "hp-0",
@@ -57,11 +57,11 @@
     },
     {
       "id": "hp-6",
-      "name": "HP Laser MFP 1188w Printer",
-      "price": 25806,
-      "original_price": 25806,
-      "image": "https://in-media.apjonlinecdn.com/catalog/product/cache/c5b0e6136a6dd7f7d91d8b889ed40f35/1/1/1188w_1.png",
-      "url": "https://www.hp.com/in-en/shop/hp-laser-mfp-1188w-printer-715a3a.html#product.tab.offer",
+      "name": "HP Smart Tank 580 All-in-One Printer",
+      "price": 19177,
+      "original_price": 19177,
+      "image": "https://in-media.apjonlinecdn.com/catalog/product/cache/c5b0e6136a6dd7f7d91d8b889ed40f35/1/F/1F3Y2A-1_T1680351612.png",
+      "url": "https://www.hp.com/in-en/shop/hp-smart-tank-580-all-in-one-printer-1f3y2a.html#product.tab.offer",
       "in_stock": true
     },
     {

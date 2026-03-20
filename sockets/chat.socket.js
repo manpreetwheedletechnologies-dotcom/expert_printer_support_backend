@@ -61,21 +61,38 @@ module.exports = (io) => {
     // ───────────────────────────────────────────────────────────────────────────
     socket.on('join_chat', async ({ roomId, visitorName }) => {
       socket.join(roomId);
+      // Track which room this visitor socket belongs to (for disconnect cleanup)
+      socket.roomId    = roomId;
+      socket.visitorName = visitorName;
       console.log(`📥  ${visitorName || socket.userId || 'Unknown'} joined room: ${roomId}`);
 
-      // Update visitor's socketId in DB for direct pushes
+      // Update visitor's socketId + mark online in DB
       await Chat.findOneAndUpdate(
         { roomId },
-        { 'visitor.socketId': socket.id }
+        {
+          'visitor.socketId': socket.id,
+          visitorOnline:      true,
+          visitorLastSeen:    new Date(),
+        }
       ).catch(console.error);
 
       // Send chat history to the joiner
       const chat = await Chat.findOne({ roomId }).lean().catch(() => null);
       if (chat) socket.emit('chat_history', chat.messages || []);
 
-      // Tell the other party someone joined
-      socket.to(roomId).emit('user_joined', {
-        message: `${visitorName || 'Agent'} has joined the chat`,
+      // Tell agent/admin in the room that visitor is now online
+      socket.to(roomId).emit('visitor_status', {
+        roomId,
+        online:   true,
+        name:     visitorName,
+        timestamp: new Date(),
+      });
+
+      // Notify all agents_room so sidebar indicator updates
+      io.to('agents_room').emit('visitor_status', {
+        roomId,
+        online:   true,
+        name:     visitorName,
         timestamp: new Date(),
       });
     });
@@ -270,8 +287,9 @@ module.exports = (io) => {
     // EVENT: disconnect
     // ───────────────────────────────────────────────────────────────────────────
     socket.on('disconnect', async () => {
-      console.log(`❌  Socket disconnected: ${socket.id}`);
+      console.log(`❌  Socket disconnected: ${socket.id} (role: ${socket.userRole || 'visitor'})`);
 
+      // ── Agent / Admin disconnect ──────────────────────────────────────────
       if (socket.userId) {
         await User.findByIdAndUpdate(socket.userId, {
           lastSeen: Date.now(),
@@ -279,9 +297,67 @@ module.exports = (io) => {
         }).catch(console.error);
 
         io.to('admin_room').emit('agent_offline', { agentId: socket.userId });
+        return;
+      }
+
+      // ── Visitor disconnect ────────────────────────────────────────────────
+      // Find any chat where this visitor's socketId matches — they closed the bot
+      try {
+        const chat = await Chat.findOne({ 'visitor.socketId': socket.id });
+        if (!chat) return;
+
+        // Mark visitor offline immediately
+        await Chat.findByIdAndUpdate(chat._id, {
+          visitorOnline:    false,
+          visitorLastSeen:  new Date(),
+          'visitor.socketId': null,
+        });
+
+        // Broadcast offline status to agent/admin in the room AND sidebar
+        const offlinePayload = {
+          roomId:    chat.roomId,
+          online:    false,
+          timestamp: new Date(),
+        };
+        io.to(chat.roomId).emit('visitor_status', offlinePayload);
+        io.to('agents_room').emit('visitor_status', offlinePayload);
+        io.to('admin_room').emit('visitor_status', offlinePayload);
+
+        if (chat.status === 'waiting') {
+          // Nobody accepted yet — remove entirely (visitor left before agent responded)
+          await Chat.findByIdAndDelete(chat._id);
+
+          // Tell all agent dashboards to remove the request card
+          io.to('agents_room').emit('chat_queue_update', {
+            action: 'visitor_left',
+            roomId: chat.roomId,
+          });
+
+          console.log(`🗑  Deleted waiting chat ${chat.roomId} — visitor disconnected`);
+
+        } else if (chat.status === 'active') {
+          // Agent is already chatting — mark as closed, notify agent
+          await Chat.findByIdAndUpdate(chat._id, {
+            status: 'closed',
+          });
+
+          // Notify the room (agent sees "visitor disconnected")
+          io.to(chat.roomId).emit('visitor_disconnected', {
+            roomId:  chat.roomId,
+            message: 'Visitor has left the chat.',
+          });
+
+          // Update agent sidebar
+          io.to('agents_room').emit('chat_queue_update', {
+            action: 'closed',
+            roomId: chat.roomId,
+          });
+
+          console.log(`🔒  Closed active chat ${chat.roomId} — visitor disconnected`);
+        }
+      } catch (err) {
+        console.error('Visitor disconnect handler error:', err.message);
       }
     });
   });
 };
-// NOTE: The above file already has the module.exports wrapper.
-// The code below is appended as a comment — actual addition is done via str_replace.

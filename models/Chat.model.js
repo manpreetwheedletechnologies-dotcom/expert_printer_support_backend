@@ -65,6 +65,10 @@ const chatSchema = new mongoose.Schema(
     adminJoined: { type: Boolean, default: false },
     adminId:     { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
 
+    // Visitor online status (real-time)
+    visitorOnline: { type: Boolean, default: false },
+    visitorLastSeen: { type: Date },
+
     // Metrics
     waitTime: { type: Number },          // seconds visitor waited
     duration: { type: Number },          // seconds chat lasted
