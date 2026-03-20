@@ -48,6 +48,8 @@ async function scrapeHPPrinters(force = false) {
       ]
     });
     const page = await browser.newPage();
+    page.on('console', (msg) => console.log('PAGE LOG:', msg.text()));
+
     
     // 🛡️ Set US Headers and Cookies to prevent redirect to India
     await page.setExtraHTTPHeaders({
@@ -97,23 +99,67 @@ async function scrapeHPPrinters(force = false) {
     console.log("⏳ Waiting for product grid (.productTile or .Zg-SR_gh)...");
     await page.waitForSelector(".productTile, .Zg-SR_gh, .vwa-page", { timeout: 20000 });
 
+    // 🚀 Added: extra wait for prices to be injected via JS
+    console.log("⏳ Letting prices load...");
+    await new Promise(r => setTimeout(r, 5000));
+
     const printers = await page.evaluate(() => {
       // Try multiple selectors for product items
       const items = Array.from(document.querySelectorAll(".productTile, .Zg-SR_gh, [class*='productTile']"));
       
       return items.slice(0, 15).map((el, i) => {
         // Name and Link
+
         const nameEl = el.querySelector("h3") || el.querySelector("a.tileLink-gfe h3") || el.querySelector(".tile-name");
         const linkEl = el.querySelector("a.tileLink-gfe") || el.querySelector("a");
         const imgEl = el.querySelector("img");
         
-        // Price Selectors - HP US uses specific classes like 'price-gfe' or similar
-        const priceEl = el.querySelector("[class*='price']") || el.querySelector(".price");
-        const msrpEl = el.querySelector("[class*='msrp']") || el.querySelector(".msrp-tooltip-btn")?.parentElement;
+        // Extended Price Selectors for HP US Grid (2025/2026 style)
+        const priceSelectors = [
+          ".price-box",
+          ".price-gfe", 
+          ".p-box__price",
+          ".p-box__sale-price",
+          ".current-price",
+          ".pdp-price", 
+          ".price", 
+          "[class*='Price']", 
+          "[data-automation-id='product-price']",
+          ".Zg-SR_p"
+        ];
         
-        const name = nameEl?.innerText?.trim() || "HP Printer";
-        let printerUrl = linkEl?.href || "#";
-        const image = imgEl?.src || "";
+        const msrpSelectors = [
+          ".msrp-box",
+          ".msrp-gfe", 
+          ".p-box__msrp",
+          ".p-box__list-price",
+          ".msrp", 
+          "[class*='msrp']", 
+          ".msrp-tooltip-btn",
+          ".Zg-SR_o"
+        ];
+
+        let priceEl = null;
+        for (const sel of priceSelectors) {
+          const found = el.querySelector(sel);
+          if (found && (found.innerText || found.textContent).trim()) {
+              priceEl = found;
+              break;
+          }
+        }
+
+        let msrpEl = null;
+        for (const sel of msrpSelectors) {
+          const found = el.querySelector(sel);
+          if (found && (found.innerText || found.textContent).trim()) {
+              msrpEl = found;
+              break;
+          }
+        }
+        
+        const name = (el.querySelector("h3") || el.querySelector(".tile-name") || el.querySelector("[class*='Name']"))?.innerText?.trim() || "HP Printer";
+        let printerUrl = (el.querySelector("a.tileLink-gfe") || el.querySelector("a"))?.href || "#";
+        const image = el.querySelector("img")?.src || "";
         
         // Clean up URL
         if (printerUrl.includes("/in-en/")) {
@@ -122,12 +168,37 @@ async function scrapeHPPrinters(force = false) {
 
         const parsePrice = (txt) => {
           if (!txt) return 0;
-          const match = txt.match(/[\d,.]+/);
-          return match ? parseFloat(match[0].replace(/,/g, "")) : 0;
+          let clean = txt.replace(/\s/g, "");
+          
+          if (txt.toLowerCase().includes("/mo") || txt.toLowerCase().includes("per month")) {
+             const subArr = txt.split(/Price/i);
+             if (subArr.length > 1) txt = subArr[1]; // Look after the word "Price"
+          }
+
+          // More specific regex: Must have $ or follow "Price" or be a large number
+          const matches = txt.match(/\$\s?\d{1,3}(,\d{3})*(\.\d{2})?|\d{1,3}(,\d{3})*(\.\d{2})/g);
+          if (!matches) return 0;
+          
+          const nums = matches.map(m => parseFloat(m.replace(/[$,]/g, "")));
+          // Return the first significant number (usually the primary price)
+          return nums.find(n => n > 1) || nums[0] || 0;
         };
 
-        const price = parsePrice(priceEl?.innerText);
-        let originalPrice = parsePrice(msrpEl?.innerText) || price;
+        let price = parsePrice(priceEl?.innerText || priceEl?.textContent);
+        
+        // Robust Fallback: Search parent and siblings if price is 0
+        if (price === 0) {
+           const cardText = el.innerText || "";
+           // Search for strings like $299.99 or $1,299
+           const priceMatch = cardText.match(/\$\s?(\d{1,3}(,\d{3})*(\.\d{2})?)/g);
+           if (priceMatch && priceMatch.length > 0) {
+               // Usually the first price with $ is the right one
+               price = parsePrice(priceMatch[0]);
+           }
+        }
+
+        let originalPrice = parsePrice(msrpEl?.innerText || msrpEl?.textContent) || price;
+        if (originalPrice < price) originalPrice = price;
 
         return {
           id: `hp-us-${i}`,
@@ -139,6 +210,8 @@ async function scrapeHPPrinters(force = false) {
           in_stock: !el.innerText.toUpperCase().includes("OUT OF STOCK"),
           currency: "USD"
         };
+
+
       });
     });
 

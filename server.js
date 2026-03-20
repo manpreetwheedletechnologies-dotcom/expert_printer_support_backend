@@ -6,7 +6,11 @@ const cors       = require('cors');
 require('dotenv').config();
 
 const app    = express();
+const compression = require('compression');
 const server = http.createServer(app);
+
+app.use(compression());
+
 
 const io = new Server(server, {
   cors: {
