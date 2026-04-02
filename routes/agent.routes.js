@@ -188,11 +188,14 @@ router.post('/chats/:id/accept', protect, authorise('agent'), async (req, res) =
     const io = req.app.get('io');
 
     // Tell the visitor an agent connected
-    io.to(chat.roomId).emit('agent_connected', {
-      message:   'A support agent has joined. How can we help you?',
-      agentId:   req.user._id,
-      timestamp: new Date(),
-    });
+   const agent = await User.findById(req.user._id).select('name');
+
+io.to(chat.roomId).emit('agent_connected', {
+  message:   `${agent?.name || 'A support agent'} has joined. How can we help you?`,
+  agentId:   req.user._id,
+  name:      agent?.name || 'Support Agent',
+  timestamp: new Date(),
+});
 
     // Update queue on all dashboards — removes from other agents' request cards
     io.to('agents_room').emit('chat_queue_update', {

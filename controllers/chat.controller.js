@@ -2,6 +2,7 @@ const { v4: uuidv4 } = require('uuid');
 const Chat = require('../models/Chat.model');
 const Lead = require('../models/Lead.model');
 const User = require('../models/User.model');
+const path = require('path');
 
 // ─── POST /api/chat/initiate  (visitor starts chat) ──────────────────────────
 // Chat stays "waiting" — agent must manually accept from dashboard
@@ -135,5 +136,36 @@ exports.getAllChats = async (req, res) => {
     res.json({ success: true, total, chats });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+exports.uploadAttachment = async (req, res) => {
+  try {
+    const { roomId } = req.params;
+
+    const chat = await Chat.findOne({ roomId });
+    if (!chat) {
+      return res.status(404).json({ success: false, message: 'Chat not found' });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: 'No file uploaded' });
+    }
+
+    const fileUrl = `/uploads/chat/${req.file.filename}`;
+    const isImage = req.file.mimetype.startsWith('image/');
+
+    return res.status(201).json({
+      success: true,
+      file: {
+        fileUrl,
+        fileName: req.file.originalname,
+        fileSize: req.file.size,
+        mimeType: req.file.mimetype,
+        type: isImage ? 'image' : 'file',
+      },
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
   }
 };

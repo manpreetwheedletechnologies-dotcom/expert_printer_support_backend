@@ -2,12 +2,16 @@
 const router = require('express').Router();
 const {
   initiateChat, getChatHistory, getQueue,
-  getMyChats, closeChat, getAllChats,
+  getMyChats, closeChat, getAllChats, uploadAttachment,
 } = require('../controllers/chat.controller');
+
 const { protect, authorise } = require('../middlewares/auth.middleware');
+const chatUpload = require('../middlewares/chatUpload.middleware');
 
 router.post('/initiate',               initiateChat);                             // public (chatbot)
 router.get('/history/:roomId',         getChatHistory);                           // public (visitor)
+router.post('/:roomId/upload', chatUpload.single('attachment'), uploadAttachment);
+
 router.get('/queue',                   protect, authorise('agent','admin'), getQueue);
 router.get('/my-chats',                protect, authorise('agent'),         getMyChats);
 router.post('/:roomId/close',          protect, authorise('agent','admin'), closeChat);

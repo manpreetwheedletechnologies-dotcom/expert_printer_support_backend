@@ -4,6 +4,7 @@ const { Server } = require('socket.io');
 const mongoose   = require('mongoose');
 const cors       = require('cors');
 require('dotenv').config();
+const path = require('path');
 
 const app    = express();
 const compression = require('compression');
@@ -45,6 +46,7 @@ app.use((req, res, next) => {
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 app.use('/api/auth',   require('./routes/auth.routes'));
 app.use('/api/leads',  require('./routes/leads.routes'));

@@ -18,12 +18,11 @@
  *   Agent:    connect (with JWT) → join agents_room → accept/pick chats
  */
 
-const { verifySocketToken } = require('../middlewares/auth.middleware');
-const Chat = require('../models/Chat.model');
-const User = require('../models/User.model');
+const { verifySocketToken } = require("../middlewares/auth.middleware");
+const Chat = require("../models/Chat.model");
+const User = require("../models/User.model");
 
 module.exports = (io) => {
-
   // ─── Middleware: authenticate agents/admins ─────────────────────────────────
   // Visitors connect without a token; agents/admins pass token in handshake
   io.use((socket, next) => {
@@ -31,169 +30,262 @@ module.exports = (io) => {
     if (token) {
       const decoded = verifySocketToken(token);
       if (decoded) {
-        socket.userId   = decoded.id;
-        socket.userRole = decoded.role || 'visitor';
+        socket.userId = decoded.id;
+        socket.userRole = decoded.role || "visitor";
       }
     }
     next(); // visitors pass through without token
   });
 
   // ─── On connection ───────────────────────────────────────────────────────────
-  io.on('connection', (socket) => {
-    console.log(`🔌  Socket connected: ${socket.id} (role: ${socket.userRole || 'visitor'})`);
+  io.on("connection", (socket) => {
+    console.log(
+      `🔌  Socket connected: ${socket.id} (role: ${socket.userRole || "visitor"})`,
+    );
 
     // ── AGENT / ADMIN SETUP ────────────────────────────────────────────────────
-    if (socket.userRole === 'agent' || socket.userRole === 'admin') {
-
-      socket.join('agents_room');
-      if (socket.userRole === 'admin') socket.join('admin_room');
+    if (socket.userRole === "agent" || socket.userRole === "admin") {
+      socket.join("agents_room");
+      if (socket.userRole === "admin") socket.join("admin_room");
 
       // Save agent's current socketId so we can push direct notifications
-      User.findByIdAndUpdate(socket.userId, { socketId: socket.id, lastSeen: Date.now() }).catch(console.error);
+      User.findByIdAndUpdate(socket.userId, {
+        socketId: socket.id,
+        lastSeen: Date.now(),
+      }).catch(console.error);
 
       // Broadcast updated agent online status to admin
-      io.to('admin_room').emit('agent_online', { agentId: socket.userId, socketId: socket.id });
+      io.to("admin_room").emit("agent_online", {
+        agentId: socket.userId,
+        socketId: socket.id,
+      });
     }
 
     // ───────────────────────────────────────────────────────────────────────────
     // EVENT: visitor or agent joins a chat room
     // Emitted by: website chatbot widget (visitor) OR agent dashboard
     // ───────────────────────────────────────────────────────────────────────────
-    socket.on('join_chat', async ({ roomId, visitorName }) => {
+    socket.on("join_chat", async ({ roomId, visitorName }) => {
       socket.join(roomId);
       // Track which room this visitor socket belongs to (for disconnect cleanup)
-      socket.roomId    = roomId;
+      socket.roomId = roomId;
       socket.visitorName = visitorName;
-      console.log(`📥  ${visitorName || socket.userId || 'Unknown'} joined room: ${roomId}`);
+      console.log(
+        `📥  ${visitorName || socket.userId || "Unknown"} joined room: ${roomId}`,
+      );
 
       // Update visitor's socketId + mark online in DB
       await Chat.findOneAndUpdate(
         { roomId },
         {
-          'visitor.socketId': socket.id,
-          visitorOnline:      true,
-          visitorLastSeen:    new Date(),
-        }
+          "visitor.socketId": socket.id,
+          visitorOnline: true,
+          visitorLastSeen: new Date(),
+        },
       ).catch(console.error);
 
       // Send chat history to the joiner
-      const chat = await Chat.findOne({ roomId }).lean().catch(() => null);
-      if (chat) socket.emit('chat_history', chat.messages || []);
+      const chat = await Chat.findOne({ roomId })
+        .lean()
+        .catch(() => null);
+      if (chat) socket.emit("chat_history", chat.messages || []);
 
       // Tell agent/admin in the room that visitor is now online
-      socket.to(roomId).emit('visitor_status', {
+      socket.to(roomId).emit("visitor_status", {
         roomId,
-        online:   true,
-        name:     visitorName,
+        online: true,
+        name: visitorName,
         timestamp: new Date(),
       });
 
       // Notify all agents_room so sidebar indicator updates
-      io.to('agents_room').emit('visitor_status', {
+      io.to("agents_room").emit("visitor_status", {
         roomId,
-        online:   true,
-        name:     visitorName,
+        online: true,
+        name: visitorName,
         timestamp: new Date(),
       });
+    });
+
+    socket.on("visitor_closed_chat_window", async ({ roomId }) => {
+      try {
+        const chat = await Chat.findOneAndUpdate(
+          { roomId, "visitor.socketId": socket.id },
+          {
+            visitorOnline: false,
+            visitorLastSeen: new Date(),
+          },
+          { new: true },
+        );
+
+        if (!chat) return;
+
+        const offlinePayload = {
+          roomId,
+          online: false,
+          timestamp: new Date(),
+        };
+
+        io.to(roomId).emit("visitor_status", offlinePayload);
+        io.to("agents_room").emit("visitor_status", offlinePayload);
+        io.to("admin_room").emit("visitor_status", offlinePayload);
+      } catch (err) {
+        console.error("visitor_closed_chat_window error:", err.message);
+      }
     });
 
     // ───────────────────────────────────────────────────────────────────────────
     // EVENT: send a message
     // Emitted by: visitor chatbot widget OR agent dashboard
     // ───────────────────────────────────────────────────────────────────────────
-    socket.on('send_message', async ({ roomId, text, sender, senderId, type = 'text' }) => {
-      if (!roomId || !text) return;
-
-      const message = {
+    socket.on(
+      "send_message",
+      async ({
+        roomId,
+        text = "",
         sender,
-        senderId: senderId || null,
-        text,
-        type,
-        createdAt: new Date(),
-        isRead: false,
-      };
+        senderId,
+        type = "text",
+        fileUrl = "",
+        fileName = "",
+        fileSize = 0,
+        mimeType = "",
+      }) => {
+        const safeText = String(text || "").trim();
+        const hasAttachment = Boolean(fileUrl);
 
-      // Persist to MongoDB
-      await Chat.findOneAndUpdate(
-        { roomId },
-        { $push: { messages: message }, updatedAt: new Date() }
-      ).catch(console.error);
+        if (!roomId || (!safeText && !hasAttachment)) return;
 
-      // Broadcast to everyone in room (including sender for confirmation)
-      io.to(roomId).emit('receive_message', { ...message, roomId });
+        const message = {
+          sender,
+          senderId: senderId || null,
+          text: safeText,
+          type,
+          fileUrl,
+          fileName,
+          fileSize,
+          mimeType,
+          createdAt: new Date(),
+          isRead: false,
+        };
 
-      // Notify agent dashboard if message is from visitor
-      if (sender === 'visitor') {
-        io.to('agents_room').emit('visitor_message_notification', {
-          roomId,
-          preview: text.substring(0, 80),
-          timestamp: new Date(),
-        });
-      }
-    });
+        await Chat.findOneAndUpdate(
+          { roomId },
+          { $push: { messages: message }, updatedAt: new Date() },
+        ).catch(console.error);
+
+        io.to(roomId).emit("receive_message", { ...message, roomId });
+
+        if (sender === "visitor") {
+          io.to("agents_room").emit("visitor_message_notification", {
+            roomId,
+            preview: hasAttachment
+              ? `Attachment: ${fileName || "file"}`
+              : safeText.substring(0, 80),
+            timestamp: new Date(),
+          });
+        }
+      },
+    );
+    // socket.on('send_message', async ({ roomId, text, sender, senderId, type = 'text' }) => {
+    //   if (!roomId || !text) return;
+
+    //   const message = {
+    //     sender,
+    //     senderId: senderId || null,
+    //     text,
+    //     type,
+    //     createdAt: new Date(),
+    //     isRead: false,
+    //   };
+
+    //   // Persist to MongoDB
+    //   await Chat.findOneAndUpdate(
+    //     { roomId },
+    //     { $push: { messages: message }, updatedAt: new Date() }
+    //   ).catch(console.error);
+
+    //   // Broadcast to everyone in room (including sender for confirmation)
+    //   io.to(roomId).emit('receive_message', { ...message, roomId });
+
+    //   // Notify agent dashboard if message is from visitor
+    //   if (sender === 'visitor') {
+    //     io.to('agents_room').emit('visitor_message_notification', {
+    //       roomId,
+    //       preview: text.substring(0, 80),
+    //       timestamp: new Date(),
+    //     });
+    //   }
+    // });
 
     // ───────────────────────────────────────────────────────────────────────────
     // EVENT: typing indicator
     // ───────────────────────────────────────────────────────────────────────────
-    socket.on('typing_start', ({ roomId, sender }) => {
-      socket.to(roomId).emit('typing_indicator', { sender, isTyping: true });
+    socket.on("typing_start", ({ roomId, sender }) => {
+      socket.to(roomId).emit("typing_indicator", { sender, isTyping: true });
     });
 
-    socket.on('typing_stop', ({ roomId, sender }) => {
-      socket.to(roomId).emit('typing_indicator', { sender, isTyping: false });
+    socket.on("typing_stop", ({ roomId, sender }) => {
+      socket.to(roomId).emit("typing_indicator", { sender, isTyping: false });
     });
 
     // ───────────────────────────────────────────────────────────────────────────
     // EVENT: agent accepts a waiting chat from queue
     // ───────────────────────────────────────────────────────────────────────────
-    socket.on('accept_chat', async ({ roomId }) => {
+    socket.on("accept_chat", async ({ roomId }) => {
       try {
         const chat = await Chat.findOneAndUpdate(
-          { roomId, status: 'waiting' },
+          { roomId, status: "waiting" },
           {
             assignedAgent: socket.userId,
             agentSocketId: socket.id,
-            status: 'active',
+            status: "active",
             waitTime: 0,
           },
-          { new: true }
+          { new: true },
         );
 
         if (!chat) {
-          return socket.emit('error', { message: 'Chat already taken or not found' });
+          return socket.emit("error", {
+            message: "Chat already taken or not found",
+          });
         }
 
         socket.join(roomId);
 
         // Add chat to agent's active list
-        await User.findByIdAndUpdate(socket.userId, { $addToSet: { activeChats: chat._id } });
+        await User.findByIdAndUpdate(socket.userId, {
+          $addToSet: { activeChats: chat._id },
+        });
 
         // Tell the visitor an agent has connected
-        io.to(roomId).emit('agent_connected', {
-          message: 'A support agent has joined. How can we help you?',
+        io.to(roomId).emit("agent_connected", {
+          message: "A support agent has joined. How can we help you?",
           agentId: socket.userId,
           timestamp: new Date(),
         });
 
         // Update queue view on all agent dashboards
-        io.to('agents_room').emit('chat_queue_update', {
-          action: 'accepted',
+        io.to("agents_room").emit("chat_queue_update", {
+          action: "accepted",
           roomId,
           agentId: socket.userId,
         });
 
-        socket.emit('chat_accepted', { roomId, chat });
+        socket.emit("chat_accepted", { roomId, chat });
       } catch (err) {
-        socket.emit('error', { message: err.message });
+        socket.emit("error", { message: err.message });
       }
     });
 
     // ───────────────────────────────────────────────────────────────────────────
     // EVENT: agent toggles availability (on/off duty)
     // ───────────────────────────────────────────────────────────────────────────
-    socket.on('set_availability', async ({ isAvailable }) => {
-      await User.findByIdAndUpdate(socket.userId, { isAvailable }).catch(console.error);
-      io.to('agents_room').emit('agent_availability_changed', {
+    socket.on("set_availability", async ({ isAvailable }) => {
+      await User.findByIdAndUpdate(socket.userId, { isAvailable }).catch(
+        console.error,
+      );
+      io.to("agents_room").emit("agent_availability_changed", {
         agentId: socket.userId,
         isAvailable,
       });
@@ -202,14 +294,19 @@ module.exports = (io) => {
     // ───────────────────────────────────────────────────────────────────────────
     // EVENT: mark messages as read
     // ───────────────────────────────────────────────────────────────────────────
-    socket.on('mark_read', async ({ roomId }) => {
+    socket.on("mark_read", async ({ roomId }) => {
       await Chat.updateOne(
         { roomId },
-        { $set: { 'messages.$[elem].isRead': true, 'messages.$[elem].readAt': new Date() } },
-        { arrayFilters: [{ 'elem.isRead': false }] }
+        {
+          $set: {
+            "messages.$[elem].isRead": true,
+            "messages.$[elem].readAt": new Date(),
+          },
+        },
+        { arrayFilters: [{ "elem.isRead": false }] },
       ).catch(console.error);
 
-      socket.to(roomId).emit('messages_read', { roomId });
+      socket.to(roomId).emit("messages_read", { roomId });
     });
 
     // ───────────────────────────────────────────────────────────────────────────
@@ -217,77 +314,84 @@ module.exports = (io) => {
     // Agent clicks "Request Admin" button on their dashboard
     // Admin sees a notification badge and can click "Join Chat"
     // ───────────────────────────────────────────────────────────────────────────
-    socket.on('request_admin', async ({ roomId }) => {
+    socket.on("request_admin", async ({ roomId }) => {
       try {
         const chat = await Chat.findOne({ roomId }).lean();
-        if (!chat) return socket.emit('error', { message: 'Chat not found' });
+        if (!chat) return socket.emit("error", { message: "Chat not found" });
 
         // Notify all admins in admin_room
-        io.to('admin_room').emit('admin_join_request', {
+        io.to("admin_room").emit("admin_join_request", {
           roomId,
           requestedBy: socket.userId,
-          visitor:     chat.visitor,
-          issue:       chat.queryContext?.initialMessage || '',
-          timestamp:   new Date(),
+          visitor: chat.visitor,
+          issue: chat.queryContext?.initialMessage || "",
+          timestamp: new Date(),
         });
 
         // Confirm to the agent
-        socket.emit('admin_requested', { roomId, message: 'Admin has been notified.' });
+        socket.emit("admin_requested", {
+          roomId,
+          message: "Admin has been notified.",
+        });
       } catch (err) {
-        socket.emit('error', { message: err.message });
+        socket.emit("error", { message: err.message });
       }
     });
 
     // ───────────────────────────────────────────────────────────────────────────
     // EVENT: admin accepts the join request and enters the chat
     // ───────────────────────────────────────────────────────────────────────────
-    socket.on('admin_join_chat', async ({ roomId }) => {
+    socket.on("admin_join_chat", async ({ roomId }) => {
       try {
         socket.join(roomId);
 
         // Update DB — mark admin as observer
         await Chat.findOneAndUpdate(
           { roomId },
-          { $set: { adminJoined: true, adminId: socket.userId } }
+          { $set: { adminJoined: true, adminId: socket.userId } },
         );
 
         // Notify everyone in the room that admin joined
-        io.to(roomId).emit('admin_joined', {
-          message:   'Admin has joined the conversation.',
-          adminId:   socket.userId,
+        io.to(roomId).emit("admin_joined", {
+          message: "Admin has joined the conversation.",
+          adminId: socket.userId,
           timestamp: new Date(),
         });
 
         // Remove the pending request from all admin dashboards
-        io.to('admin_room').emit('admin_request_resolved', { roomId });
+        io.to("admin_room").emit("admin_request_resolved", { roomId });
 
-        socket.emit('admin_join_confirmed', { roomId });
+        socket.emit("admin_join_confirmed", { roomId });
       } catch (err) {
-        socket.emit('error', { message: err.message });
+        socket.emit("error", { message: err.message });
       }
     });
 
     // ───────────────────────────────────────────────────────────────────────────
     // EVENT: admin declines the join request
     // ───────────────────────────────────────────────────────────────────────────
-    socket.on('admin_decline_request', ({ roomId }) => {
-      io.to('admin_room').emit('admin_request_resolved', { roomId });
+    socket.on("admin_decline_request", ({ roomId }) => {
+      io.to("admin_room").emit("admin_request_resolved", { roomId });
       // Notify the agent their request was declined
-      Chat.findOne({ roomId }).then(chat => {
-        if (chat?.agentSocketId) {
-          io.to(chat.agentSocketId).emit('admin_declined', {
-            roomId,
-            message: 'Admin is currently unavailable.',
-          });
-        }
-      }).catch(() => {});
+      Chat.findOne({ roomId })
+        .then((chat) => {
+          if (chat?.agentSocketId) {
+            io.to(chat.agentSocketId).emit("admin_declined", {
+              roomId,
+              message: "Admin is currently unavailable.",
+            });
+          }
+        })
+        .catch(() => {});
     });
 
     // ───────────────────────────────────────────────────────────────────────────
     // EVENT: disconnect
     // ───────────────────────────────────────────────────────────────────────────
-    socket.on('disconnect', async () => {
-      console.log(`❌  Socket disconnected: ${socket.id} (role: ${socket.userRole || 'visitor'})`);
+    socket.on("disconnect", async () => {
+      console.log(
+        `❌  Socket disconnected: ${socket.id} (role: ${socket.userRole || "visitor"})`,
+      );
 
       // ── Agent / Admin disconnect ──────────────────────────────────────────
       if (socket.userId) {
@@ -296,67 +400,70 @@ module.exports = (io) => {
           socketId: null,
         }).catch(console.error);
 
-        io.to('admin_room').emit('agent_offline', { agentId: socket.userId });
+        io.to("admin_room").emit("agent_offline", { agentId: socket.userId });
         return;
       }
 
       // ── Visitor disconnect ────────────────────────────────────────────────
       // Find any chat where this visitor's socketId matches — they closed the bot
       try {
-        const chat = await Chat.findOne({ 'visitor.socketId': socket.id });
+        const chat = await Chat.findOne({ "visitor.socketId": socket.id });
         if (!chat) return;
 
         // Mark visitor offline immediately
         await Chat.findByIdAndUpdate(chat._id, {
-          visitorOnline:    false,
-          visitorLastSeen:  new Date(),
-          'visitor.socketId': null,
+          visitorOnline: false,
+          visitorLastSeen: new Date(),
+          "visitor.socketId": null,
         });
 
         // Broadcast offline status to agent/admin in the room AND sidebar
         const offlinePayload = {
-          roomId:    chat.roomId,
-          online:    false,
+          roomId: chat.roomId,
+          online: false,
           timestamp: new Date(),
         };
-        io.to(chat.roomId).emit('visitor_status', offlinePayload);
-        io.to('agents_room').emit('visitor_status', offlinePayload);
-        io.to('admin_room').emit('visitor_status', offlinePayload);
+        io.to(chat.roomId).emit("visitor_status", offlinePayload);
+        io.to("agents_room").emit("visitor_status", offlinePayload);
+        io.to("admin_room").emit("visitor_status", offlinePayload);
 
-        if (chat.status === 'waiting') {
+        if (chat.status === "waiting") {
           // Nobody accepted yet — remove entirely (visitor left before agent responded)
           await Chat.findByIdAndDelete(chat._id);
 
           // Tell all agent dashboards to remove the request card
-          io.to('agents_room').emit('chat_queue_update', {
-            action: 'visitor_left',
+          io.to("agents_room").emit("chat_queue_update", {
+            action: "visitor_left",
             roomId: chat.roomId,
           });
 
-          console.log(`🗑  Deleted waiting chat ${chat.roomId} — visitor disconnected`);
-
-        } else if (chat.status === 'active') {
+          console.log(
+            `🗑  Deleted waiting chat ${chat.roomId} — visitor disconnected`,
+          );
+        } else if (chat.status === "active") {
           // Agent is already chatting — mark as closed, notify agent
           await Chat.findByIdAndUpdate(chat._id, {
-            status: 'closed',
+            status: "closed",
           });
 
           // Notify the room (agent sees "visitor disconnected")
-          io.to(chat.roomId).emit('visitor_disconnected', {
-            roomId:  chat.roomId,
-            message: 'Visitor has left the chat.',
+          io.to(chat.roomId).emit("visitor_disconnected", {
+            roomId: chat.roomId,
+            message: "Visitor has left the chat.",
           });
 
           // Update agent sidebar
-          io.to('agents_room').emit('chat_queue_update', {
-            action: 'closed',
+          io.to("agents_room").emit("chat_queue_update", {
+            action: "closed",
             roomId: chat.roomId,
           });
 
-          console.log(`🔒  Closed active chat ${chat.roomId} — visitor disconnected`);
+          console.log(
+            `🔒  Closed active chat ${chat.roomId} — visitor disconnected`,
+          );
         }
       } catch (err) {
-        console.error('Visitor disconnect handler error:', err.message);
+        console.error("Visitor disconnect handler error:", err.message);
       }
     });
   });

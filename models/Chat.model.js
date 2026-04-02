@@ -1,3 +1,6 @@
+
+
+// ─── Message Sub-Schema ────────────────────────────────────────────────────────
 const mongoose = require('mongoose');
 
 // ─── Message Sub-Schema ────────────────────────────────────────────────────────
@@ -9,18 +12,47 @@ const messageSchema = new mongoose.Schema(
       required: true,
     },
     senderId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-    text: { type: String, required: true },
+
+    // text stays optional for file/image messages
+    text: { type: String, default: '' },
+
     type: {
       type: String,
       enum: ['text', 'image', 'file', 'system_event'],
       default: 'text',
     },
-    fileUrl: { type: String },
+
+    fileUrl: { type: String, default: '' },
+    fileName: { type: String, default: '' },
+    fileSize: { type: Number, default: 0 },
+    mimeType: { type: String, default: '' },
+
     isRead: { type: Boolean, default: false },
     readAt: { type: Date },
   },
   { timestamps: true }
 );
+
+// const messageSchema = new mongoose.Schema(
+//   {
+//     sender: {
+//       type: String,
+//       enum: ['visitor', 'agent', 'bot', 'system'],
+//       required: true,
+//     },
+//     senderId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+//     text: { type: String, required: true },
+//     type: {
+//       type: String,
+//       enum: ['text', 'image', 'file', 'system_event'],
+//       default: 'text',
+//     },
+//     fileUrl: { type: String },
+//     isRead: { type: Boolean, default: false },
+//     readAt: { type: Date },
+//   },
+//   { timestamps: true }
+// );
 
 // ─── Chat Session Schema ───────────────────────────────────────────────────────
 const chatSchema = new mongoose.Schema(
